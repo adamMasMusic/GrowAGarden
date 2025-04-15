@@ -1689,7 +1689,7 @@ local buyButtons = {
 	["Pumpkin"] = BuyPumpkinButton,
 	["Apple"] = BuyAppleButton,
 	["Corn"] = BuyCornButton,
-	["DragonFruit"] = BuyDragonFruitButton,
+	["Dragon Fruit"] = BuyDragonFruitButton,
 	["Blueberry"] = BuyBlueberryButton,
 	["Carrot"] = BuyCarrotButton,
 	["Mango"] = BuyMangoButton,
@@ -1831,11 +1831,11 @@ local function buyFruit(fruit)
 end
 
 local function checkFruitBuy()
-	for fruit, enabled in fruitList do
+	for fruit, a in fruitList do
 		if not functions["AutoBuy"] then
 			return
 		end
-		if enabled then
+		if a then
 			buyFruit(fruit)
 		end
 	end
