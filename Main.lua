@@ -1782,8 +1782,8 @@ end
 local function getFruit(fruit)
 	fruit.ProximityPrompt.MaxActivationDistance = 5
 	game.Players.LocalPlayer.Character:PivotTo(CFrame.new(fruit.CFrame.X, math.max(4, fruit.CFrame.Y), fruit.CFrame.Z))
+	wait(0.05)
 	if fruit and fruit.ProximityPrompt then
-		wait(0.05)
 		fireproximityprompt(fruit.ProximityPrompt)
 	end
 end
