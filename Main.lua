@@ -1771,7 +1771,7 @@ end
 
 local function disableFruitsCollisions()
 	for _,fruit in localFarm.Important.Plants_Physical:GetChildren() do
-		for _,p in fruit.Fruits:GetDescendants() do
+		for _,p in fruit:GetDescendants() do
 			if p:IsA("BasePart") then
 				p.CanCollide = false
 			end
@@ -1869,10 +1869,10 @@ local function plantSeeds()
 		if not functions["AutoPlant"] then
 			return
 		end
-		if plantList[des.Name] then
-			selectFruit(des.Parent.Plant_Name.Value)
+		if des:IsA("StringValue") and plantList[des.Value] then
+			selectFruit(des.Value)
 			wait(1)
-			for i = 1, des.Value do
+			for i = 1, des.Parent.Numbers.Value do
 				if not functions["AutoPlant"] then
 					return
 				end
