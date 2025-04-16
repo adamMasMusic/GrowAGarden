@@ -1904,20 +1904,20 @@ end)
 
 while true do
 	if functions["FruitNoClip"] then
-		pcall(disableFruitsCollisions())
+		pcall(disableFruitsCollisions)
 	end
 	if functions["AutoHarvest"] then
-		pcall(fruitLoop())
+		pcall(fruitLoop)
 	end
 	if functions["AutoSell"] then
-		pcall(sellFruits())
+		pcall(sellFruits)
 	end
 	if functions["AutoBuy"] then
-		pcall(checkFruitBuy())
+		pcall(checkFruitBuy)
 	end
 	wait(0.2)
 	if functions["AutoPlant"] then
-		pcall(plantSeeds())
+		pcall(plantSeeds)
 	end
 	wait()
 end
