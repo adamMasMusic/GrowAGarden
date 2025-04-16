@@ -1869,7 +1869,7 @@ local function plantSeeds()
 		if not functions["AutoPlant"] then
 			return
 		end
-		if des:IsA("StringValue") and plantList[des.Value] then
+		if des:IsA("StringValue") and des.Name == "Plant_Name" and plantList[des.Value] then
 			selectFruit(des.Value)
 			wait(1)
 			for i = 1, des.Parent.Numbers.Value do
@@ -1904,20 +1904,20 @@ end)
 
 while true do
 	if functions["FruitNoClip"] then
-		disableFruitsCollisions()
+		pcall(disableFruitsCollisions())
 	end
 	if functions["AutoHarvest"] then
-		fruitLoop()
+		pcall(fruitLoop())
 	end
 	if functions["AutoSell"] then
-		sellFruits()
+		pcall(sellFruits())
 	end
 	if functions["AutoBuy"] then
-		checkFruitBuy()
+		pcall(checkFruitBuy())
 	end
 	wait(0.2)
 	if functions["AutoPlant"] then
-		plantSeeds()
+		pcall(plantSeeds())
 	end
 	wait()
 end
