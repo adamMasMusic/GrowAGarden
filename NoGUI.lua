@@ -17,7 +17,8 @@ local localPlayer = players.LocalPlayer
 local farm = getFarmModule(localPlayer)
 
 local destroy = false --destroy button in UI
-local pickupTime = 0.0166666667 --to be set by UI
+local pickupTime = 0.022 --to be set by UI
+local saveWeight = 20 --to be set by UI
 
 local pi    = math.pi
 local abs   = math.abs
@@ -71,6 +72,14 @@ local buyList = { --will be set in UI once made
 	Grape = true
 }
 
+local gearBuyList = { --will be set in UI once made
+	WateringCan = true,
+	BasicSprinkler = true,
+	AdvancedSprinkler = true,
+	GodlySprinkler = true,
+	MasterSprinkler = true
+}
+
 local easterBuyList = { --will be set in UI once made
 	["Chocolate Carrot"] = true,
 	["Red Lollipop"] = true,
@@ -85,8 +94,10 @@ local gameActions = { --will be set in UI once made
 	["AutoBuy"] = true,
 	["Autoharvest"] = true,
 	["AutoPlant"] = true,
+	["AutoBuyGear"] = true,
 	["CollectNear"] = true,
 	["FruitNoClip"] = true,
+	["SaveItemsAboveWeight"] = true,
 	["FreeCamOnCollection"] = true
 }
 
@@ -386,37 +397,8 @@ local PlayerState = {} do
 	local cameraFocus
 	local cameraCFrame
 	local cameraFieldOfView
-	local screenGuis = {}
-	local coreGuis = {
-		Backpack = true,
-		Chat = true,
-		Health = true,
-		PlayerList = true,
-	}
-	local setCores = {
-		BadgesNotificationsActive = true,
-		PointsNotificationsActive = true,
-	}
 
-	-- Save state and set up for freecam
 	function PlayerState.Push()
-		--for name in pairs(coreGuis) do
-		--	coreGuis[name] = StarterGui:GetCoreGuiEnabled(Enum.CoreGuiType[name])
-		--	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType[name], false)
-		--end
-		--for name in pairs(setCores) do
-		--	setCores[name] = StarterGui:GetCore(name)
-		--	StarterGui:SetCore(name, false)
-		--end
-		--local playergui = localPlayer:FindFirstChildOfClass("PlayerGui")
-		--if playergui then
-		--	for _, gui in pairs(playergui:GetChildren()) do
-		--		if gui:IsA("ScreenGui") and gui.Enabled then
-		--			screenGuis[#screenGuis + 1] = gui
-		--			gui.Enabled = false
-		--		end
-		--	end
-		--end
 
 		cameraFieldOfView = Camera.FieldOfView
 		Camera.FieldOfView = 70
@@ -427,27 +409,12 @@ local PlayerState = {} do
 		cameraCFrame = Camera.CFrame
 		cameraFocus = Camera.Focus
 
-		mouseIconEnabled = UserInputService.MouseIconEnabled
-		UserInputService.MouseIconEnabled = false
-
 		mouseBehavior = UserInputService.MouseBehavior
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	end
 
 	-- Restore state
 	function PlayerState.Pop()
-		for name, isEnabled in pairs(coreGuis) do
-			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType[name], isEnabled)
-		end
-		for name, isEnabled in pairs(setCores) do
-			StarterGui:SetCore(name, isEnabled)
-		end
-		for _, gui in pairs(screenGuis) do
-			if gui.Parent then
-				gui.Enabled = true
-			end
-		end
-
 		Camera.FieldOfView = cameraFieldOfView
 		cameraFieldOfView = nil
 
@@ -459,9 +426,6 @@ local PlayerState = {} do
 
 		Camera.Focus = cameraFocus
 		cameraFocus = nil
-
-		UserInputService.MouseIconEnabled = mouseIconEnabled
-		mouseIconEnabled = nil
 
 		UserInputService.MouseBehavior = mouseBehavior
 		mouseBehavior = nil
@@ -522,11 +486,23 @@ do
 	ContextActionService:BindActionAtPriority("FreecamToggle", HandleActivationInput, false, TOGGLE_INPUT_PRIORITY, FREECAM_MACRO_KB[#FREECAM_MACRO_KB])
 end
 
+--saving items above a weight
+local function checkForSave()
+	if gameActions["SaveItemsAboveWeight"] then
+		for _, item in localPlayer.Backpack:GetDescendants() do
+			if item.Name == "Weight" and item.Value >= saveWeight and not item.Parent:GetAttribute("Favorite") then
+				replicatedStorage:WaitForChild("GameEvents"):WaitForChild("Favorite_Item"):FireServer(item.Parent)
+			end
+		end
+	end
+end
+
 --sell fruit
 local function sellFruits()
+	checkForSave()
 	localPlayer.Character:PivotTo(CFrame.new(62,3,-1))
 	wait(0.3)
-	game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("Sell_Inventory"):FireServer()
+	replicatedStorage:WaitForChild("GameEvents"):WaitForChild("Sell_Inventory"):FireServer()
 end
 
 --disable collisions
@@ -569,6 +545,38 @@ local function easterBuyItem(item)
 	end
 end
 
+--buy gears
+local function gearCheckStock(gear)
+	for _,des in game.Players.LocalPlayer.PlayerGui.Gear_Shop.Frame.ScrollingFrame:GetDescendants() do
+		if des.Name == "Stock_Text" and des.Parent.Parent.Name == gear then
+			return string.match(des.Text, "%d+")
+		end
+	end
+end
+
+local function buyGear(gear)
+	local stock = tonumber(gearCheckStock(gear))
+	if stock > 0 then
+		for i = 1, stock do
+			if not gameActions["AutoBuyGear"] then
+				return
+			end
+			replicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(gear)
+		end
+	end
+end
+
+local function checkGearBuy()
+	for gear, a in gearBuyList do
+		if not gameActions["AutoBuyGear"] then
+			return
+		end
+		if a then
+			buyGear(gear)
+		end
+	end
+end
+
 --buy fruit
 local function checkStock(fruit)
 	for _,des in game.Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame:GetDescendants() do
@@ -585,7 +593,7 @@ local function buyFruit(fruit)
 			if not gameActions["AutoBuy"] then
 				return
 			end
-			game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(fruit)
+			replicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(fruit)
 		end
 	end
 end
@@ -667,7 +675,6 @@ local function fruitCollect()
 	for _, fruit in collectionService:GetTagged("Harvestable") do
 		for a,b in gameActions do if a == "AutoHarvest" then return end end
 		if #localPlayer.Backpack:GetChildren() >= 200 then
-			print("Inventory full, selling")
 			sellFruits()
 		end
 		local item = fruit:FindFirstChild("ProximityPrompt", true)
@@ -686,8 +693,10 @@ game.Players.LocalPlayer.Idled:connect(function()
 	game:GetService("VirtualUser"):ClickButton2(Vector2.new())
 end)
 
-notificationModule:CreateNotification([[<font face="Roboto"><stroke color="#ffffff" thickness="0"><font color="#ff0000">T</font><font color="#ff2e00">h</font><font color="#ff5c00">i</font><font color="#ff8a00">s</font> <font color="#ffb800">s</font><font color="#ffe500">c</font><font color="#ebff00">r</font><font color="#bdff00">i</font><font color="#8fff00">p</font><font color="#61ff00">t</font> <font color="#33ff00">w</font><font color="#05ff00">a</font><font color="#00ff29">s</font> <font color="#00ff57">m</font><font color="#00ff85">a</font><font color="#00ffb3">d</font><font color="#00ffe0">e</font> <font color="#00f0ff">b</font><font color="#00c2ff">y</font> <font color="#0094ff">_</font><font color="#0066ff">b</font><font color="#0038ff">l</font><font color="#000aff">a</font><font color="#2400ff">h</font><font color="#5200ff">a</font><font color="#8000ff">j</font></stroke></font>]])
+--script notification
+notificationModule:CreateNotification([[<font face="Roboto"><font color="#ff0000">T</font><font color="#ff1f00">h</font><font color="#ff3e00">i</font><font color="#ff5d00">s</font> <font color="#ff7c00">s</font><font color="#ff9b00">c</font><font color="#ffba00">r</font><font color="#ffd900">i</font><font color="#fff800">p</font><font color="#e7ff00">t</font> <font color="#c8ff00">w</font><font color="#a9ff00">a</font><font color="#8aff00">s</font> <font color="#6bff00">m</font><font color="#4cff00">a</font><font color="#2dff00">d</font><font color="#0eff00">e</font> <font color="#00ff11">b</font><font color="#00ff30">y</font> <font color="#00ff4f">_</font><font color="#00ff6e">b</font><font color="#00ff8d">l</font><font color="#00ffac">a</font><font color="#00ffcb">h</font><font color="#00ffea">a</font><font color="#00f5ff">j</font> <font color="#00d6ff">o</font><font color="#00b7ff">n</font> <font color="#0098ff">D</font><font color="#0079ff">C</font><font color="#005aff">,</font> <font color="#003bff">e</font><font color="#001cff">n</font><font color="#0300ff">j</font><font color="#2200ff">o</font><font color="#4100ff">y</font> <font color="#6000ff">;</font><font color="#8000ff">3</font></font>]])
 
+--main loop
 while true do
 	if not destroy then
 		if gameActions["FruitNoClip"] then
@@ -711,6 +720,12 @@ while true do
 		if gameActions["AutoBuy"] then
 			local s,r = pcall(function()
 				checkFruitBuy()
+			end)
+			if not s then print(r) end
+		end
+		if gameActions["AutoBuyGear"] then
+			local s,r = pcall(function()
+				checkGearBuy()
 			end)
 			if not s then print(r) end
 		end
