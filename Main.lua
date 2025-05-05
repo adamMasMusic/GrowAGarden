@@ -15,8 +15,10 @@ local plantEvent = replicatedStorage:WaitForChild("GameEvents"):WaitForChild("Pl
 
 local localPlayer = players.LocalPlayer
 local farm = getFarmModule(localPlayer)
+local playerMouse = localPlayer:GetMouse()
+local previous
+local fruit
 
--- Initialize global variables if they don't exist
 -- Initialize global variables if they don't exist
 if not _G.destroy then
 	_G.destroy = false -- destroy button in UI
@@ -52,7 +54,10 @@ if not _G.plantList then
 		["Red Lollipop"] = false,
 		["Candy Sunflower"] = false,
 		["Easter Egg"] = false,
-		["Candy Blossom"] = false
+		["Candy Blossom"] = false,
+		["Orange Tulip"] = false,
+		Mushroom = false,
+		Pepper = false
 	}
 end
 
@@ -61,6 +66,7 @@ if not _G.buyList then
 		Carrot = false,
 		Strawberry = false,
 		Blueberry = false,
+		["Orange Tulip"] = false,
 		Orange = false,
 		Tomato = false,
 		Corn = false,
@@ -73,28 +79,42 @@ if not _G.buyList then
 		Cactus = false,
 		["Dragon Fruit"] = false,
 		Mango = false,
-		Grape = false
+		Grape = false,
+		Mushroom = false,
+		Pepper = false
 	}
 end
 
 if not _G.gearBuyList then
 	_G.gearBuyList = {
-		WateringCan = false,
-		BasicSprinkler = false,
-		AdvancedSprinkler = false,
-		GodlySprinkler = false,
-		MasterSprinkler = false
+		["Watering Can"] = false,
+		["Trowel"] = false,
+		["Basic Sprinkler"] = false,
+		["Advanced Sprinkler"] = false,
+		["Godly Sprinkler"] = false,
+		["Lightning Rod"] = false,
+		["Master Sprinkler"] = false
 	}
 end
 
-if not _G.easterBuyList then
-	_G.easterBuyList = {
-		["Chocolate Carrot"] = false,
-		["Red Lollipop"] = false,
-		["Candy Sunflower"] = false,
-		["Easter Egg"] = false,
-		["Chocolate Sprinkler"] = false,
-		["Candy Blossom"] = false
+--if not _G.easterBuyList then
+--	_G.easterBuyList = {
+--		["Chocolate Carrot"] = false,
+--		["Red Lollipop"] = false,
+--		["Candy Sunflower"] = false,
+--		["Easter Egg"] = false,
+--		["Chocolate Sprinkler"] = false,
+--		["Candy Blossom"] = false
+--	}
+--end
+
+if not _G.eggBuyList then
+	_G.eggBuyList = {
+		["Common"] = false,
+		["Uncommon"] = false,
+		["Rare"] = false,
+		["Legendary"] = false,
+		["Bug"] = false,
 	}
 end
 
@@ -104,7 +124,6 @@ if not _G.gameActions then
 		["AutoBuy"] = false,
 		["Autoharvest"] = false,
 		["AutoPlant"] = false,
-		["AutoBuyGear"] = false,
 		["CollectNear"] = false,
 		["FruitNoClip"] = false,
 		["SaveItemsAboveWeight"] = false,
@@ -580,7 +599,7 @@ local function buyGear(gear)
 	local stock = tonumber(gearCheckStock(gear))
 	if stock and stock > 0 then
 		for i = 1, stock do
-			if not _G.gameActions["AutoBuyGear"] then
+			if not _G.gameActions["AutoBuy"] then
 				return
 			end
 			replicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(gear)
@@ -590,11 +609,57 @@ end
 
 local function checkGearBuy()
 	for gear, a in pairs(_G.gearBuyList) do
-		if not _G.gameActions["AutoBuyGear"] then
+		if not _G.gameActions["AutoBuy"] then
 			return
 		end
 		if a then
 			buyGear(gear)
+		end
+	end
+end
+
+--Buy eggs
+local function checkEggBuyable(egg)
+	for _, item in game.Workspace.NPCS["Pet Stand"].EggLocations:GetChildren() do
+		if not _G.gameActions["AutoBuy"] then
+			return
+		end
+
+		if item:IsA("Model") and item.WorldPivot == egg.CFrame and not item:GetAttribute("RobuxEggOnly") then
+			print("buyable")
+			return true
+		end
+	end
+end
+
+local function buyEgg(egg)
+	if checkEggBuyable(egg) then
+		print("buying egg")
+		if not _G.gameActions["AutoBuy"] then
+				return
+			end
+		if egg.Position.Z > 1 then
+			replicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuyPetEgg"):FireServer(2)
+		elseif egg.Position.Z < -1 then
+			replicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuyPetEgg"):FireServer(1)
+		else
+			replicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuyPetEgg"):FireServer(3)
+		end
+	end
+end
+
+local function checkBuyEggs()
+	for _, item in game.Workspace.NPCS["Pet Stand"].EggLocations:GetChildren() do
+		if item.Name == "Location" then
+			for key, need in _G.eggBuyList do
+				if not _G.gameActions["AutoBuy"] then
+					return
+				end
+				if need and key == item.PetInfo.SurfaceGui.RarityTextLabel.Text then
+					print(key)
+					buyEgg(item)
+				end
+			end
 		end
 	end
 end
@@ -629,14 +694,14 @@ local function checkFruitBuy()
 			buyFruit(fruit)
 		end
 	end
-	for item, a in pairs(_G.easterBuyList) do
-		if not _G.gameActions["AutoBuy"] then
-			return
-		end
-		if a then
-			easterBuyItem(item)
-		end
-	end
+	--for item, a in pairs(_G.easterBuyList) do
+	--	if not _G.gameActions["AutoBuy"] then
+	--		return
+	--	end
+	--	if a then
+	--		easterBuyItem(item)
+	--	end
+	--end
 end
 
 -- Planting
@@ -739,15 +804,16 @@ local gui = createInstance("ScreenGui", {
 
 -- Create main frame
 local mainFrame = createInstance("Frame", {
-	Name = "MainFrame",
-	Parent = gui,
-	BackgroundColor3 = Color3.fromRGB(35, 35, 35),
-	BorderSizePixel = 0,
-	Position = UDim2.new(0.5, -250, 0.5, -150),
-	Size = UDim2.new(0, 500, 0, 300),
-	Active = true,
-	Draggable = true,
-	Selectable = true
+    Name = "MainFrame",
+    Parent = gui,
+    BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+    BorderSizePixel = 0,
+    Position = UDim2.new(0.5, -250, 0.5, -150),
+    Size = UDim2.new(0, 500, 0, 300),
+    Active = true,
+    Draggable = true,
+    Selectable = true,
+    ClipsDescendants = true  -- Add this to prevent content overflow
 })
 
 -- Add resize button
@@ -845,44 +911,50 @@ local tabsSidebar = createInstance("Frame", {
 
 -- Create content frame
 local contentFrame = createInstance("Frame", {
-	Name = "ContentFrame",
-	Parent = mainFrame,
-	BackgroundColor3 = Color3.fromRGB(35, 35, 35),
-	BorderSizePixel = 0,
-	Position = UDim2.new(0, 100, 0, 30),
-	Size = UDim2.new(1, -100, 1, -30)
+    Name = "ContentFrame",
+    Parent = mainFrame,
+    BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+    BorderSizePixel = 0,
+    Position = UDim2.new(0, 100, 0, 30),
+    Size = UDim2.new(1, -100, 1, -30),
+    ClipsDescendants = true  -- Add this to prevent content overflow
 })
 
 -- Function to create a tab
 local function createTab(name, index)
-	local tab = createInstance("TextButton", {
-		Name = name .. "Tab",
-		Parent = tabsSidebar,
-		BackgroundColor3 = Color3.fromRGB(35, 35, 35),
-		BorderSizePixel = 0,
-		Position = UDim2.new(0, 0, 0, 40 * (index - 1)),
-		Size = UDim2.new(1, 0, 0, 40),
-		Font = Enum.Font.SourceSansBold,
-		Text = name,
-		TextColor3 = Color3.fromRGB(255, 255, 255),
-		TextSize = 14
-	})
+    local tab = createInstance("TextButton", {
+        Name = name .. "Tab",
+        Parent = tabsSidebar,
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0, 40 * (index - 1)),
+        Size = UDim2.new(1, 0, 0, 40),
+        Font = Enum.Font.SourceSansBold,
+        Text = name,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 14
+    })
 
-	local contentPage = createInstance("ScrollingFrame", {
-		Name = name .. "Page",
-		Parent = contentFrame,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		Position = UDim2.new(0, 0, 0, 0),
-		Size = UDim2.new(1, 0, 1, 0),
-		CanvasSize = UDim2.new(0, 0, 0, 0),
-		ScrollBarThickness = 6,
-		Visible = false,
-		AutomaticCanvasSize = Enum.AutomaticSize.Y
-	})
+    local contentPage = createInstance("ScrollingFrame", {
+        Name = name .. "Page",
+        Parent = contentFrame,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(1, 0, 1, 0),
+        CanvasSize = UDim2.new(0, 0, 2, 0),  -- Increase canvas size for scrolling
+        ScrollBarThickness = 6,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        Visible = false,
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        BottomImage = "rbxasset://textures/ui/Scroll/scroll-bottom.png",
+        MidImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
+        TopImage = "rbxasset://textures/ui/Scroll/scroll-top.png"
+    })
 
-	return tab, contentPage
+    return tab, contentPage
 end
+
 
 -- Function to create a toggle
 local function createToggle(parent, name, description, startingValue, callback, yPos)
@@ -1211,7 +1283,7 @@ local normalSeedToggles = {}
 local buyListItems = {
 	"Carrot", "Strawberry", "Blueberry", "Orange", "Tomato", "Corn", "Daffodil",
 	"Watermelon", "Pumpkin", "Apple", "Bamboo", "Coconut", "Cactus",
-	"Dragon Fruit", "Mango", "Grape"
+	"Dragon Fruit", "Mango", "Grape", "Mushroom", "Pepper"
 }
 
 for i, item in ipairs(buyListItems) do
@@ -1234,50 +1306,50 @@ for i, item in ipairs(buyListItems) do
 	normalSeedToggles[item] = {toggle = toggle, get = getToggle, set = setToggle}
 end
 
--- Easter Section
--- Create section title for Easter Items
-local easterSection = createSectionTitle(autoBuyPage, "Easter Items", 100 + math.ceil(#buyListItems/2) * 40)
-
-local easterToggles = {}
-local easterItems = {
-	"Chocolate Carrot", "Red Lollipop", "Candy Sunflower", "Easter Egg", 
-	"Chocolate Sprinkler", "Candy Blossom"
-}
-
-for i, item in ipairs(easterItems) do
-	local row = math.floor((i-1) / 2)
-	local col = (i-1) % 2
-	local xPos = col * 0.5
-	local yPos = 140 + math.ceil(#buyListItems/2) * 40 + row * 40
-
-	local toggle, getToggle, setToggle = createSmallToggle(
-		autoBuyPage, 
-		item, 
-		_G.easterBuyList and _G.easterBuyList[item] or false, 
-		function(value)
-			if not _G.easterBuyList then _G.easterBuyList = {} end
-			_G.easterBuyList[item] = value
-		end, 
-		xPos,
-		yPos
-	)
-	easterToggles[item] = {toggle = toggle, get = getToggle, set = setToggle}
-end
+---- Easter Section
+---- Create section title for Easter Items
+--local easterSection = createSectionTitle(autoBuyPage, "Easter Items", 100 + math.ceil(#buyListItems/2) * 40)
+--
+--local easterToggles = {}
+--local easterItems = {
+--	"Chocolate Carrot", "Red Lollipop", "Candy Sunflower", "Easter Egg", 
+--	"Chocolate Sprinkler", "Candy Blossom"
+--}
+--
+--for i, item in ipairs(easterItems) do
+--	local row = math.floor((i-1) / 2)
+--	local col = (i-1) % 2
+--	local xPos = col * 0.5
+--	local yPos = 140 + math.ceil(#buyListItems/2) * 40 + row * 40
+--
+--	local toggle, getToggle, setToggle = createSmallToggle(
+--		autoBuyPage, 
+--		item, 
+--		_G.easterBuyList and _G.easterBuyList[item] or false, 
+--		function(value)
+--			if not _G.easterBuyList then _G.easterBuyList = {} end
+--			_G.easterBuyList[item] = value
+--		end, 
+--		xPos,
+--		yPos
+--	)
+--	easterToggles[item] = {toggle = toggle, get = getToggle, set = setToggle}
+--end
 
 -- Gear Section
 -- Create section title for Gear Items
-local gearSection = createSectionTitle(autoBuyPage, "Gear Items", 140 + (math.ceil(#buyListItems/2) + math.ceil(#easterItems/2)) * 40)
+local gearSection = createSectionTitle(autoBuyPage, "Gear Items", 100 + math.ceil(#buyListItems/2) * 40)
 
 local gearToggles = {}
 local gearItems = {
-	"WateringCan", "BasicSprinkler", "AdvancedSprinkler", "GodlySprinkler", "MasterSprinkler"
+	"Watering Can", "Trowel", "Basic Sprinkler", "Advanced Sprinkler", "Godly Sprinkler", "Lightning Rod", "Master Sprinkler"
 }
 
 for i, item in ipairs(gearItems) do
 	local row = math.floor((i-1) / 2)
 	local col = (i-1) % 2
 	local xPos = col * 0.5
-	local yPos = 180 + (math.ceil(#buyListItems/2) + math.ceil(#easterItems/2)) * 40 + row * 40
+	local yPos = 140 + math.ceil(#buyListItems/2) * 40 + row * 40
 
 	local toggle, getToggle, setToggle = createSmallToggle(
 		autoBuyPage, 
@@ -1291,6 +1363,33 @@ for i, item in ipairs(gearItems) do
 		yPos
 	)
 	gearToggles[item] = {toggle = toggle, get = getToggle, set = setToggle}
+end
+
+local eggSection = createSectionTitle(autoBuyPage, "Eggs", 140 + (math.ceil(#buyListItems/2) + math.ceil(#gearItems/2)) * 40)
+
+local eggToggles = {}
+local eggItems = {
+    "Common", "Uncommon", "Rare", "Legendary", "Bug"
+}
+
+for i, item in ipairs(eggItems) do
+	local row = math.floor((i-1) / 2)
+	local col = (i-1) % 2
+	local xPos = col * 0.5
+	local yPos = 180 + (math.ceil(#buyListItems/2) + math.ceil(#gearItems/2)) * 40 + row * 40
+
+	local toggle, getToggle, setToggle = createSmallToggle(
+		autoBuyPage, 
+		item, 
+		_G.eggBuyList and _G.eggBuyList[item] or false, 
+		function(value)
+			if not _G.eggBuyList then _G.eggBuyList = {} end
+			_G.eggBuyList[item] = value
+		end, 
+		xPos,
+		yPos
+	)
+	eggToggles[item] = {toggle = toggle, get = getToggle, set = setToggle}
 end
 
 -- Create content for Auto Sell page
@@ -1531,6 +1630,88 @@ spawn(function()
 	end
 end)
 
+--plant mover
+local function selectTrowel()
+	for _,item in game.Players.LocalPlayer.Backpack:GetChildren() do
+		if string.find(item.Name, "Trowel") then
+			game.Players.LocalPlayer.Character.Humanoid:EquipTool(item)
+		end
+	end
+end
+
+local function getCoreFruit(item)
+    if item.Parent == farm.Important.Plants_Physical then
+        fruit = item
+    elseif item.Parent == game.Workspace then
+        error("Item is not a fruit on your farm")
+    else
+        getCoreFruit(item.Parent)
+    end
+end
+
+local function pickup(item)
+    selectTrowel()
+    local trowel
+    for _, item in game.Players.LocalPlayer.Backpack:GetChildren() do
+        if string.find(item.Name, "Trowel") then
+            trowel = item
+        end
+    end
+    if string.find(game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool").Name, "Trowel") then
+        trowel = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")
+    end
+    if not trowel then error("No trowel found") end
+
+    local args = {
+	    "Pickup",
+	    trowel,
+	    item
+    }
+    game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("TrowelRemote"):InvokeServer(unpack(args))
+end
+
+local function place(item, overwrite)
+    local trowel
+    for _, item in game.Players.LocalPlayer.Backpack:GetChildren() do
+        if string.find(item.Name, "Trowel") then
+            trowel = item
+        end
+    end
+    if string.find(game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool").Name, "Trowel") then
+        trowel = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")
+    end
+    if not trowel then error("No trowel found") end
+
+    local position
+    if overwrite then
+        position = previous
+    else
+        position = CFrame.new(game.Players.LocalPlayer.Character.HumanoidRootPart.Position)
+        previous = position
+    end
+    local args = {
+    	"Place",
+    	trowel,
+    	item,
+    	position
+    }
+    game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("TrowelRemote"):InvokeServer(unpack(args))
+end
+
+userInputService.InputBegan:connect(function(input)
+    if input.KeyCode == Enum.KeyCode.X then
+        getCoreFruit(playerMouse.Target)
+        print(fruit)
+        pickup(fruit)
+    end
+    if input.KeyCode == Enum.KeyCode.V and fruit then
+        place(fruit, false)
+    end
+    if input.KeyCode == Enum.KeyCode.C and fruit then
+        place(fruit, true)
+    end
+end)
+
 --script notification
 notificationModule:CreateNotification([[<font face="Roboto"><font color="#ff0000">T</font><font color="#ff1f00">h</font><font color="#ff3e00">i</font><font color="#ff5d00">s</font> <font color="#ff7c00">s</font><font color="#ff9b00">c</font><font color="#ffba00">r</font><font color="#ffd900">i</font><font color="#fff800">p</font><font color="#e7ff00">t</font> <font color="#c8ff00">w</font><font color="#a9ff00">a</font><font color="#8aff00">s</font> <font color="#6bff00">m</font><font color="#4cff00">a</font><font color="#2dff00">d</font><font color="#0eff00">e</font> <font color="#00ff11">b</font><font color="#00ff30">y</font> <font color="#00ff4f">_</font><font color="#00ff6e">b</font><font color="#00ff8d">l</font><font color="#00ffac">a</font><font color="#00ffcb">h</font><font color="#00ffea">a</font><font color="#00f5ff">j</font> <font color="#00d6ff">o</font><font color="#00b7ff">n</font> <font color="#0098ff">D</font><font color="#0079ff">C</font><font color="#005aff">,</font> <font color="#003bff">e</font><font color="#001cff">n</font><font color="#0300ff">j</font><font color="#2200ff">o</font><font color="#4100ff">y</font> <font color="#6000ff">;</font><font color="#8000ff">3</font></font>]])
 
@@ -1572,12 +1753,13 @@ while true do
 		if not success then
 			warn("Error in AutoBuy: " .. tostring(errorMsg))
 		end
-	end
-
-	if _G.gameActions["AutoBuyGear"] then
 		success, errorMsg = pcall(checkGearBuy)
 		if not success then
-			warn("Error in AutoBuyGear: " .. tostring(errorMsg))
+			warn("Error in AutoBuy: " .. tostring(errorMsg))
+		end
+		success, errorMsg = pcall(checkBuyEggs)
+		if not success then
+			warn("Error in AutoBuy: " .. tostring(errorMsg))
 		end
 	end
 
